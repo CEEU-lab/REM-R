@@ -1,0 +1,270 @@
+---
+title: "Urban landscape tendencies - PPP"
+output: html_notebook
+---
+```{r, include=FALSE, echo=FALSE}
+library(tidyverse)
+```
+```{r, include=FALSE, echo=FALSE}
+df <- read_csv("https://storage.googleapis.com/python_mdg/carto_cursos/ar_properties.csv.gz")
+```
+**SUPUESTO 1:** Se trabaja sobre la idea que buscamos tipologías con potencial de edificación en altura
+```{r, include=FALSE, echo=FALSE}
+pt_data <- df %>% 
+              filter(l1=="Argentina",
+                     l2=="Capital Federal",
+                     currency=="USD",
+                     property_type %in% c("PH","Casa"),
+                     operation_type %in% c("Venta"),
+                     between(surface_covered,11,500),
+                     between(price, 1000, 2e6)) %>% 
+               dplyr::select(id,l3,surface_covered,price,lat,lon,rooms,bathrooms,bedrooms,property_type) %>% 
+               mutate(pm2=price/surface_covered) %>% 
+               rename(precio=price,barrio=l3,sup=surface_covered,ambientes=rooms,
+                      baths=bathrooms,cuartos=bedrooms,tipo=property_type) %>% na.omit()
+```
+
+```{r, include=FALSE, echo=FALSE}
+# GeoPckgs
+library(terra)
+library(sf)
+library(leaflet)
+library(tmap)
+library(OpenStreetMap)
+```
+# AREA DE INTERVENCION
+```{r, include=FALSE, echo=FALSE}
+# Polygons
+barrios <- st_read("https://cdn.buenosaires.gob.ar/datosabiertos/datasets/ministerio-de-educacion/barrios/barrios.geojson")
+barrios_sur <- barrios %>% 
+               filter(COMUNA %in% c(4,8))
+```
+```{r, echo=FALSE}
+plot(barrios_sur$geometry)
+```
+
+# TIPOLOGIAS RESIDENCIALES
+Los PH y las casas son tipologías de baja densidad. Los lugares de mayor concentración, podrían representar un mayor incentivo para la compra de lote + edificación.  
+```{r  echo=FALSE}
+#knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.width=480, fig.height=480)
+barrios_sur_ <- st_transform(barrios_sur, 4326)
+
+# oferta de PH y Casa
+pt_pts <- pt_data %>% st_as_sf(coords=c("lon","lat"), crs=4326)
+sur_labels <- st_join(pt_pts, barrios_sur_)
+oferta_sur <- na.omit(sur_labels)
+tmap_mode('view') + tm_shape(oferta_sur) + tm_dots(col='tipo', palette="RdYlBu", stretch.palette=TRUE, size=0.05, shape=21, style="cont")
+```
+
+La estrategia de modelado es lineal donde `tipo ~ lon+lat, family=bynomial` (una estimación de probabilidad). La relación entre x e y podría ser `lon+lat` ó `poly(lon,3)*poly(lat,3)`, etc. En este output es, `bs(lon,4)*bs(lat,4)` - polynomial spline.   
+```{r setup, include=TRUE, echo=FASLE}
+knitr::opts_chunk$set(warning = FALSE, message = FALSE)
+library("dplyr")
+# creo base con lat/lon y tipo
+coords_of <- st_coordinates(oferta_sur)
+oferta_sur_ <- oferta_sur %>% mutate(lon=coords_of[,"X"], lat=coords_of[,"Y"]) 
+tipo_oferta_sur <- oferta_sur_ %>% dplyr::select(lat,lon,tipo) %>% mutate(tipo=as.factor(tipo))
+table(tipo_oferta_sur$tipo)
+prop.table(table(tipo_oferta_sur$tipo))
+
+# ajuste logistico
+require(splines)
+#logi <- glm(tipo ~ lon+lat, data=tipo_oferta_sur, family="binomial")
+#logi <- glm(tipo ~ poly(lon,3)*poly(lat,3), data=tipo_oferta_sur, family="binomial")
+logi <- glm(tipo ~ bs(lon,4)*bs(lat,4), data=tipo_oferta_sur, family="binomial")
+summary(logi)
+
+# prediccion en grilla
+cant <- 100
+grilla <- expand.grid(lon=seq(min(tipo_oferta_sur$lon), max(tipo_oferta_sur$lon), length.out=cant),
+                      lat=seq(min(tipo_oferta_sur$lat), max(tipo_oferta_sur$lat), length.out=cant))
+pred <- predict(logi, newdata=grilla, type="response")
+summary(pred)
+
+# creo un raster nuevo y vacio
+require(raster)
+cant.filcol <- cant # cuan fina es la grilla
+ras <- raster(nrows=cant.filcol, ncols=cant.filcol, 
+              xmn=min(tipo_oferta_sur$lon), xmx=max(tipo_oferta_sur$lon), 
+              ymn=min(tipo_oferta_sur$lat), ymx=max(tipo_oferta_sur$lat))
+
+# rasterizo
+# ... con probabilidad de PH
+ras_tipo <- raster::rasterize(grilla,ras,field=pred,fun=median) # raster de valores promedios de pm2.med
+# base de casas y ph como sf
+# capsula convexa con casas y ph
+casas_ph_sur <- st_union(tipo_oferta_sur)
+capsula <- st_convex_hull(casas_ph_sur)
+# uso capsula para recortar el area de observacion
+ras_tipo_mask <- raster::mask(ras_tipo, as_Spatial(capsula))
+valores <- raster::values(ras_tipo_mask)
+summary(valores)
+
+# Grafico resultado de la prediccion "ser PH o CASA" sobre el raster
+colores <- c('red','blue','green')
+at <- seq(min(valores, na.rm = T), max(valores, na.rm = T), length.out=20) # ptos de corte de categorias
+cb <- colorBin(palette = colores, bins = at, domain = at, na.color="#00000000")
+leaflet(width=900, height=400) %>% addTiles() %>% addProviderTiles(providers$CartoDB.Positron) %>% addRasterImage(ras_tipo_mask, opacity=0.75, colors=cb) %>% addLegend(pal=cb, values=at) 
+```
+
+
+El resultado (siguiendo la formula lineal que indicamos arriba) estaría indicando una mayor probabilidad de ocurrencia del proceso marcado hacia el este de la comuna 4. Esto podría ser un insight del escenario de base.
+
+**SUPUESTO 2**: MODIFICACION DE LA TENDENCIA ESPACIAL DE PRECIOS.
+
+Para el armado de un escenario de base, se podría evaluar la tendencia actual de precios en el territorio e ir evaluando cómo esto cambia a medida que se agregan nuevas realizaciones de procesos marcados (que en otras palabras son nuevos desarrollos llevados a cabo). 
+
+A medida que se agregan nuevos puntos uno puede interpretar que son nuevos agentes construyendo (lo que en iteraciones posteriores iría modificando la tendencia del precio sobre el territorio)
+```{r, include=FALSE}
+# CARGAR LOTES
+lot_data <- df %>% 
+            filter(l1=="Argentina",
+                   l2=="Capital Federal",
+                   currency=="USD",
+                   property_type %in% c("Lote"),
+                   operation_type %in% c("Venta"),
+                   between(price, 1000, 2e6)) %>% 
+            dplyr::select(id,l3,surface_total,price,lat,lon) %>% 
+            mutate(pm2=as.integer(price/surface_total)) %>% 
+            rename(precio=price,barrio=l3,sup=surface_total) %>% na.omit()
+
+```
+Localizacion de la oferta de suelo Q1-2021.
+```{r, echo=FALSE}
+lot_pts <- lot_data %>% st_as_sf(coords=c("lon","lat"), crs=4326)
+sur_lotes <- st_join(lot_pts, barrios_sur_)
+lotes_sur <- na.omit(sur_lotes)
+hist(lotes_sur$pm2)
+map <- tmap_mode('view') + tm_shape(lotes_sur) + tm_dots(col='pm2',
+                                                         size=0.05,
+                                                  breaks=c(0,1000,2000,4000,8000),
+                                                  labels = c("< USD1000", "1000-2000USD", "2000-4000USD", "4000-8000USD"),
+                                                  palette="-RdYlBu", contrast=1, 
+                                                  id=c("BARRIO"),
+                                                  title = "USD/m2 (Q1-2021): Lotes ",
+                                                  )
+map
+```
+
+
+EVALUACION DEL PRECIO POR M2 EN FUNCION DE LA DISTANCIA RECIPROCA. ESTE ESCENARIO EVALUA EL IMPACTO DE LA UBICACION Y LA SUPERFICIE EN LOS PRECIOS DE SUELO.
+```{r, include=FALSE, echo=FALSE}
+require(gstat)
+
+lotes_sur <- as(lotes_sur, "Spatial")
+lotes_sur <- remove.duplicates(lotes_sur, zero = 0.0) # remueve puntos superpuestos
+# creo un raster
+raster::crs(lotes_sur)
+proj4string(lotes_sur)
+coordinates(lotes_sur)
+bbox(lotes_sur)
+plot(lotes_sur)
+
+# VARIOGRAMA DE LOS RESIDUOS DE UN MODELO (efecto lineal en el espacio mas la covariable superficie)
+# Calculo el variograma muestral
+# lo veo como cloud
+plot(variogram(precio~sup+coords.x1+coords.x2, data=lotes_sur, cloud=TRUE))
+
+# ahora si creo variogramas con distintas alternativas
+#lotes_vgm <- variogram(precio~poly(coords.x1)+poly(coords.x2)+sup, data=lotes_sur, width=0.05, cutoff=3)
+#lotes_vgm <- variogram(precio~sup, lotes_sur, width=0.05, cutoff=3)
+lotes_vgm <- variogram(precio~sup+coords.x1+coords.x2, lotes_sur)
+plot(lotes_vgm)
+
+# lista de modelos posibles de variograma
+#vgm()
+#show.vgms()
+
+# modelo de variograma mas agresivo
+#lotes_vgm_fit <- fit.variogram(lotes_vgm, model=vgm(1, "Exp", 1), fit.method=1) # ajuste
+lotes_vgm_fit <- fit.variogram(lotes_vgm, model=vgm(psill=1.5e11, "Exp", nugget=5e10, range=0.8), fit.method = 1)
+#grafico del ajuste
+#plot(lotes_vgm, lotes_vgm_fit)
+```
+```{r}
+plot(lotes_vgm, lotes_vgm_fit)
+```
+SE APLICA KRIGING Y SE EVALUA EL LAG ESPACIAL DEL ERROR PARA LA PREDICCION
+```{r, echo=FALSE}
+library(rgl)
+require(scales)
+
+# A. ARMADO DE UNA GRILLA REGULAR AJUSTADA AL BOUNDING BOX
+exten <- bbox(lotes_sur) 
+cant <- 100 # cantidad de puntos de la grilla por lado
+grilla <- expand.grid(coords.x1=seq(exten[1,1], exten[1,2], length.out=cant),
+                      coords.x2=seq(exten[2,1], exten[2,2], length.out=cant))
+
+lote_medio <- 800 #superficie a predecir 
+grilla <- cbind(grilla,sup=(rep(lote_medio, cant*cant))) # agrego la superficie a ser predicha
+#head(grilla)
+coordinates(grilla) <- ~ coords.x1 + coords.x2 # conversion a spatial object
+proj4string(grilla) <- proj4string(lotes_sur) # fuerzo la misma proyeccion que los datos
+#grilla
+
+# veo la grilla
+#plot(lotes_sur[,"pm2"], cex=0.1)
+#points(grilla, cex=3)
+
+# B. APLICO KRIGING EN LA GRILLA
+kri_lotes <- krige(pm2 ~ sup + coords.x1 + coords.x2, locations=lotes_sur, newdata=grilla, model=lotes_vgm_fit)
+summary(kri_lotes)
+#plot(kri_lotes)
+
+# mapa de predicciones en la grilla con ggplot()
+require(tidyverse)
+
+# limite geografico de las dos comunas
+barrios_sur__ <- st_transform(barrios_sur_, 4326)
+bsur <- barrios_sur__ %>%  st_make_valid() %>% st_union  
+bsur_coord <- st_coordinates(bsur)[,1:2] # coordenadas de los dos barrios
+dimnames(bsur_coord)[[2]] <- c("coords.x1","coords.x2") # renombra las series
+bsur_coord_df <- as.data.frame(bsur_coord)
+#plot(bsur_coord)
+
+# mapas de prediccion
+kri_lotes %>% as.data.frame %>%
+  ggplot(aes(x=coords.x1, y=coords.x2)) + geom_tile(aes(fill=var1.pred)) + coord_equal() +
+  scale_fill_gradient(low = "yellow", high="red") +
+  scale_x_continuous(labels=comma) + scale_y_continuous(labels=comma) +
+  theme_bw() + geom_polygon(data=bsur_coord_df,aes(x=coords.x1, y=coords.x2), colour="black",fill=NA)
+
+# conversion a pixel dataframe
+kri_lotes_grid <- kri_lotes
+gridded(kri_lotes_grid) <- TRUE
+
+# mapa de prediccion con interpolacion con SP
+#plot(kri_lotes_grid["var1.pred"])
+#lines(bsur_coord)
+#points(lotes_sur, cex=0.2)
+
+# mapa de varianzas
+#plot(kri_lotes["var1.var"])
+#lines(bsur_coord)
+#points(lotes_sur, cex=0.2)
+
+# GRAFICO 3D [RESTIMAR FUNCION DE INTENSIDAD]
+#xx1 <- seq(exten[1,1], exten[1,2], length.out=cant)
+#xx2 <- seq(exten[1,1], exten[1,2], length.out=cant)
+#yy <- matrix(kri_lotes_grid$var1.pred, nrow=cant)
+#fcol <- topo.colors(10)[cut(yy[-1,-1],10, include.lowest=TRUE)]
+#persp3d(xx1,xx2,yy,theta=-60, phi=40, col=fcol)
+#rglwidget()
+
+# Estimadores de tendencia y mapa
+kri_datos3 <- gstat(NULL, "pm2", pm2~sup+coords.x1+coords.x2, lotes_sur, model=lotes_vgm_fit)
+prediccion <- predict(kri_datos3,grilla,BLUE=T)
+summary(prediccion)
+gridded(prediccion) <- TRUE
+plot(prediccion["pm2.pred"])
+lines(bsur_coord)
+contour(prediccion, add=TRUE, drawlabels=FALSE, col="cyan")
+
+
+# Visualizo la superficie de prediccion en el mapa [REPROYECTAR]
+#tmap_mode('view') + 
+  #tm_shape(kri_lotes_grid) + tm_raster(col="var1.pred", alpha=0.6, style="cont", palette = c("purple","white","orange"))
+  
+```
+La tendencia de precios con los lotes actualmente ofertados muestra un alza desde el suroeste al noreste. Esto es lo que se podria ir modificando a medida que aregamos nuevos procesos marcados o puntos como referencia
+
