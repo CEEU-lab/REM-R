@@ -1,0 +1,78 @@
+---
+title: "Modeling functions"
+author: "PyMap"
+date: "2023-05-22"
+output: html_document
+---
+
+```{r, echo=FALSE, meassage=FALSE, warning=FALSE}
+library(tidyverse)
+library(terra)
+library(sf)
+library(tmap)
+#library(leaflet)
+#library(OpenStreetMap)
+```
+
+## REAL ESTATE MARKET BEHAVIOR MODELING
+
+### 1. OFFER TYPE
+
+### Use case: `Low Density Building types`
+
+**STEP 1: Load the data**
+
+```{r, echo=FALSE, message=FALSE}
+source("properaty_data.R")
+url <- "https://storage.googleapis.com/python_mdg/carto_cursos/ar_properties.csv.gz" 
+ppp_data <- read_local_properaty(path=url)
+ppp_sel <- select_building_types(input_data=ppp_data, currency="USD", btypes=c("PH","Casa"), operation=c("Venta"))
+ppp_geo <- ppp_sel %>% st_as_sf(coords=c("lon","lat"), crs=4326)
+```
+
+**STEP 2: Define the analysis zone**
+
+2.1. Using Polygons shape file (e.g. target neighborhoods)
+
+```{r, echo=FALSE, warning=FALSE, out.width=900, out.height=350}
+
+url <- "https://cdn.buenosaires.gob.ar/datosabiertos/datasets/ministerio-de-educacion/barrios/barrios.geojson"
+neighborhoods <- st_read(url)
+
+# Area of interest
+aoi <- neighborhoods %>% 
+                filter(COMUNA %in% c(4,8))
+aoi_wgs <- st_transform(aoi, 4326)
+
+# Low density building types in southern neighborhoods
+offer_area <- st_intersection(ppp_geo, aoi_wgs)
+tmap_mode('view') + tm_shape(offer_area) + tm_dots(col='tipo', 
+                                                  palette="RdYlBu", 
+                                                  stretch.palette=TRUE, 
+                                                  size=0.05, 
+                                                  style="cont") 
+
+```
+
+2.3. Using single polygon geom limits (e.g. drawn area)
+
+```{r, echo=FALSE, warning= FALSE, out.width=900, out.height=350}
+json_char <- '{"type":"Polygon","coordinates":[[[-58.50141949394735,-34.67256921692672],[-58.4683904133488,-34.645763294241725],[-58.45627975046284,-34.64594444443433],[-58.42853532276003,-34.664419684866886],[-58.46156440335859,-34.703711150046814],[-58.50141949394735,-34.67256921692672]]]}'
+
+# Area of interest
+aoi <- st_read(json_char)
+aoi_wgs <- st_transform(aoi, 4326)
+
+# Low density building types in southern neighborhoods
+offer_area <- st_intersection(ppp_geo, aoi_wgs)
+tmap_mode('view') + tm_shape(offer_area) + tm_dots(col='tipo', 
+                                                   palette="RdYlBu", 
+                                                   stretch.palette=TRUE, 
+                                                   size=0.05, shape=21, 
+                                                   style="cont")
+```
+
+
+
+
+
