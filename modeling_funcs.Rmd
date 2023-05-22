@@ -10,8 +10,6 @@ library(tidyverse)
 library(terra)
 library(sf)
 library(tmap)
-#library(leaflet)
-#library(OpenStreetMap)
 ```
 
 ## REAL ESTATE MARKET BEHAVIOR MODELING
@@ -72,7 +70,11 @@ tmap_mode('view') + tm_shape(offer_area) + tm_dots(col='tipo',
                                                    style="cont")
 ```
 
+**STEP 3: Find low density building types**
 
-
+```{r}
+source("models.R")
+real_estate_offer(offer_area=offer_area, prediction_method='splines')
+```
 
 
