@@ -1,0 +1,19 @@
+residential-types:
+   - Casa
+   - PH
+   - Departamento
+
+non-residential-types:
+   - Oficina
+   - Depósito
+   - Local comercial
+
+high-density-types:
+   - Departamento
+
+low-density-types:
+   - Casa
+   - PH
+
+
+
