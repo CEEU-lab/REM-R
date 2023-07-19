@@ -21,26 +21,36 @@ library(tmap)
 **STEP 1: Load the data**
 
 ```{r, echo=FALSE, message=FALSE}
-source("R/properaty_data.R")
-url <- "https://storage.googleapis.com/python_mdg/carto_cursos/ar_properties.csv.gz" 
-ppp_data <- read_local_properaty(path=url)
+source("R/datasources.R")
+ppp_data <- ppp_data_local
 
 source("R/utils.R")
-ppp_recat <- ppp_data %>% rename_cat_agg(cat_col=property_type, 
-                                        new_col_str="agg_col", 
-                                        cat_a="residential-types", 
-                                        cat_b="non-residential-types")
-# Mayoria de oferta residencial
+# Predominant offer type
+# alt 1. Using rename_cat_agg
+ppp_recat <- ppp_data %>%
+rename_cat_agg(cat_col = property_type,
+new_col_str = "agg_col",
+cat_a = "residential-types",
+cat_b = "non-residential-types")
 prop.table(table(ppp_recat$agg_col))
-  
-density_types <- map_chr(ppp_data$property_type, index_cat_agg, cat_a_idx=3, cat_b_idx=4)
+
+# alt 2. Mapping user defined function (non performant)
+density_types <- map_chr(ppp_data$property_type,
+index_cat_agg,
+cat_a_idx = 3,
+cat_b_idx = 4)
 ppp_data$density_types <- density_types
 prop.table(table(ppp_data$density_types))
 
+# Load the data (use ppp_recat or ppp_data)
+ppp_sel <- select_building_types(
+  input_data = ppp_data,
+  currency = "USD",
+  btypes = c("PH", "Casa"),
+  operation = c("Venta"))
 
-
-ppp_sel <- select_building_types(input_data=ppp_data, currency="USD", btypes=c("PH","Casa"), operation=c("Venta"))
-ppp_geo <- ppp_sel %>% st_as_sf(coords=c("lon","lat"), crs=4326)
+ppp_geo <- ppp_sel %>%
+st_as_sf(coords = c("lon", "lat"), crs = 4326)
 ```
 
 **STEP 2: Define the analysis zone**
@@ -49,47 +59,45 @@ ppp_geo <- ppp_sel %>% st_as_sf(coords=c("lon","lat"), crs=4326)
 
 ```{r, echo=FALSE, warning=FALSE, out.width=900, out.height=350}
 
-url <- "https://cdn.buenosaires.gob.ar/datosabiertos/datasets/ministerio-de-educacion/barrios/barrios.geojson"
-neighborhoods <- st_read(url)
-
 # Area of interest
-aoi <- neighborhoods %>% 
-                filter(COMUNA %in% c(4,8))
+aoi <- neighborhoods %>%
+filter(COMUNA %in% c(4, 8))
 aoi_wgs <- st_transform(aoi, 4326)
 
 # Low density building types in southern neighborhoods
 offer_area <- st_intersection(ppp_geo, aoi_wgs)
-tmap_mode('view') + tm_shape(offer_area) + tm_dots(col='tipo', 
-                                                  palette="RdYlBu", 
-                                                  stretch.palette=TRUE, 
-                                                  size=0.05, 
-                                                  style="cont") 
+tmap_mode("view") +
+tm_shape(offer_area) +
+tm_dots(col = "tipo",
+palette = "RdYlBu",
+stretch.palette = TRUE,
+size = 0.05,
+style = "cont")
 
 ```
 
 2.3. Using single polygon geom limits (e.g. drawn area)
 
 ```{r, echo=FALSE, warning= FALSE, out.width=900, out.height=350}
-json_char <- '{"type":"Polygon","coordinates":[[[-58.50141949394735,-34.67256921692672],[-58.4683904133488,-34.645763294241725],[-58.45627975046284,-34.64594444443433],[-58.42853532276003,-34.664419684866886],[-58.46156440335859,-34.703711150046814],[-58.50141949394735,-34.67256921692672]]]}'
-
 # Area of interest
 aoi <- st_read(json_char)
 aoi_wgs <- st_transform(aoi, 4326)
 
 # Low density building types in southern neighborhoods
 offer_area <- st_intersection(ppp_geo, aoi_wgs)
-tmap_mode('view') + tm_shape(offer_area) + tm_dots(col='tipo', 
-                                                   palette="RdYlBu", 
-                                                   stretch.palette=TRUE, 
-                                                   size=0.05, shape=21, 
-                                                   style="cont")
+tmap_mode("view") +
+tm_shape(offer_area) +
+tm_dots(col = "tipo", palette = "RdYlBu",
+stretch.palette = TRUE,
+size = 0.05, shape = 21,
+style = "cont")
 ```
 
 **STEP 3: Find low density building types**
 
 ```{r}
 source("models.R")
-real_estate_offer(offer_area=offer_area, prediction_method='orthogonal')
+real_estate_offer(offer_area = offer_area, prediction_method = "orthogonal")
 ```
 
 
