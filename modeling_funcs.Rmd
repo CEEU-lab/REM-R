@@ -14,43 +14,43 @@ library(tmap)
 
 ## REAL ESTATE MARKET BEHAVIOR MODELING
 
-### 1. OFFER TYPE
+### 1. LOOK FOR THE PREDOMINANT OFFER TYPE
 
-### Use case: `Low Density Building types`
+### Use case: `High & Low Density Building types`
 
 **STEP 1: Load the data**
 
 ```{r, echo=FALSE, message=FALSE}
 source("R/datasources.R")
-ppp_data <- ppp_data_local
-
 source("R/utils.R")
-# Predominant offer type
+
+# Aggregations
 # alt 1. Using rename_cat_agg
-ppp_recat <- ppp_data %>%
+ppp_recat <- ppp_data_local %>%
 rename_cat_agg(cat_col = property_type,
 new_col_str = "agg_col",
-cat_a = "residential-types",
-cat_b = "non-residential-types")
+cat_a = "high-density-types",
+cat_b = "low-density-types")
 prop.table(table(ppp_recat$agg_col))
 
-# alt 2. Mapping user defined function (non performant)
-density_types <- map_chr(ppp_data$property_type,
-index_cat_agg,
-cat_a_idx = 3,
-cat_b_idx = 4)
-ppp_data$density_types <- density_types
-prop.table(table(ppp_data$density_types))
+# alt 2. Mapping user defined function (non-performing)
+#density_types <- map_chr(ppp_data_local$property_type,
+#index_cat_agg,
+#cat_a_idx = 3, # 3rd yaml key (high)
+#cat_b_idx = 4  # 4th yaml key (low density)
+#)
+#ppp_data_local$density_types <- density_types
+#prop.table(table(ppp_data_local$density_types))
 
+source("R/properaty_data.R")
 # Load the data (use ppp_recat or ppp_data)
+btypes = read_config(path = "config/building_types_agg.yaml")
 ppp_sel <- select_building_types(
-  input_data = ppp_data,
+  input_data = ppp_recat,
   currency = "USD",
-  btypes = c("PH", "Casa"),
+  colname = property_type, 
+  btypes = c(btypes$`residential-types`), 
   operation = c("Venta"))
-
-ppp_geo <- ppp_sel %>%
-st_as_sf(coords = c("lon", "lat"), crs = 4326)
 ```
 
 **STEP 2: Define the analysis zone**
@@ -58,17 +58,15 @@ st_as_sf(coords = c("lon", "lat"), crs = 4326)
 2.1. Using Polygons shape file (e.g. target neighborhoods)
 
 ```{r, echo=FALSE, warning=FALSE, out.width=900, out.height=350}
+# Aggregated offer types
+ppp_caba <- ppp_sel %>%
+st_as_sf(coords = c("lon", "lat"), crs = 4326)
 
-# Area of interest
-aoi <- neighborhoods %>%
-filter(COMUNA %in% c(4, 8))
-aoi_wgs <- st_transform(aoi, 4326)
+offer_area <- build_shp_zone(comunes = c(4, 8), ppp_geo = ppp_caba)
 
-# Low density building types in southern neighborhoods
-offer_area <- st_intersection(ppp_geo, aoi_wgs)
 tmap_mode("view") +
 tm_shape(offer_area) +
-tm_dots(col = "tipo",
+tm_dots(col = "tipo_agr",
 palette = "RdYlBu",
 stretch.palette = TRUE,
 size = 0.05,
@@ -79,25 +77,25 @@ style = "cont")
 2.3. Using single polygon geom limits (e.g. drawn area)
 
 ```{r, echo=FALSE, warning= FALSE, out.width=900, out.height=350}
-# Area of interest
-aoi <- st_read(json_char)
-aoi_wgs <- st_transform(aoi, 4326)
+offer_area_ <- build_json_zone(str_geom = json_char, ppp_geo = ppp_caba)
 
-# Low density building types in southern neighborhoods
-offer_area <- st_intersection(ppp_geo, aoi_wgs)
 tmap_mode("view") +
-tm_shape(offer_area) +
-tm_dots(col = "tipo", palette = "RdYlBu",
+tm_shape(offer_area_) +
+tm_dots(col = "tipo_agr", palette = "RdYlBu",
 stretch.palette = TRUE,
 size = 0.05, shape = 21,
 style = "cont")
 ```
 
-**STEP 3: Find low density building types**
+**STEP 3: Find predominant offer type**
 
+3.1. Using the polygons defined zone
 ```{r}
-source("models.R")
-real_estate_offer(offer_area = offer_area, prediction_method = "orthogonal")
+source("R/models.R")
+real_estate_offer(offer_area = offer_area, prediction_method = "orthogonal", intervals = 10, colorsvec = c("lightblue","yellow","purple"))
 ```
-
+3.1. Using the polygons defined zone
+```{r}
+real_estate_offer(offer_area = offer_area_, prediction_method = "splines", intervals = 6, colorsvec = c("lightblue","yellow","black"))
+```
 

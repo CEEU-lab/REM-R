@@ -1,8 +1,4 @@
-data_path:
-- "https://storage.googleapis.com/python_mdg/carto_cursos/ar_properties.csv.gz"
-
-neighbors:
-- "https://cdn.buenosaires.gob.ar/datosabiertos/datasets/ministerio-de-educacion/barrios/barrios.geojson"
-
-json_char:
-- "{"type":"Polygon","coordinates":[[[-58.50141949394735,-34.67256921692672],[-58.4683904133488,-34.645763294241725],[-58.45627975046284,-34.64594444443433],[-58.42853532276003,-34.664419684866886],[-58.46156440335859,-34.703711150046814],[-58.50141949394735,-34.67256921692672]]]}"
+data_path: 
+- https://storage.googleapis.com/python_mdg/carto_cursos/ar_properties.csv.gz
+neighbors: 
+- https://cdn.buenosaires.gob.ar/datosabiertos/datasets/ministerio-de-educacion/barrios/barrios.geojson

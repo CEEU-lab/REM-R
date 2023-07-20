@@ -18,21 +18,27 @@ select_building_types <- function(
   col_quo <- enquo(colname)
 
   pt_data <- input_data %>%
-    filter(l1 == "Argentina", #TODO:Test other cities
+    #TODO:Test how to use kwargs approach to pass just one datastructure with many args
+    filter(l1 == "Argentina", 
            l2 == "Capital Federal",
            currency == currency,
            !!col_quo %in% btypes,
            operation_type %in% operation,
-           between(surface_covered, 11, 500), #TODO:Test non residential btypes
+           between(surface_covered, 11, 500), 
            between(price, 1000, 2e6)) %>%
     dplyr::select(id, l3, surface_covered, price, lat, lon,
-                  rooms, bathrooms, bedrooms, !!col_quo) %>%
-    mutate(pm2 = price / surface_covered) %>%
+                  rooms, bathrooms, bedrooms, !!col_quo, agg_col) %>%
+    mutate(
+      pm2 = price / surface_covered) %>%
     rename(
       precio = price,
-      barrio = l3, sup = surface_covered, ambientes = rooms,
-      baths = bathrooms, cuartos = bedrooms, btipo = property_type,
-      tipo = !!col_quo) %>%
+      barrio = l3, 
+      sup = surface_covered, 
+      ambientes = rooms,
+      baths = bathrooms, 
+      cuartos = bedrooms, 
+      tipo = !!col_quo,
+      tipo_agr = agg_col) %>%
     na.omit()
   return(pt_data)
 }

@@ -1,7 +1,7 @@
 # TODO: .Rd file(DOCUMENTATION)
 
 
-read_config <- function(path = "config/building_types_agg.yaml") {
+read_config <- function(path) {
   require(yaml)
   config <- yaml.load_file(path)
   return(config)
@@ -11,7 +11,7 @@ rename_cat_agg <- function(
   df, cat_col, new_col_str,
   cat_a, cat_b
   ) {
-config <- read_config()
+config <- read_config(path = "config/building_types_agg.yaml")
 require(rlang)
 cat_a_types <- config[[cat_a]]
 cat_b_types <- config[[cat_b]]
@@ -32,7 +32,7 @@ return(df_nanout)
 
 index_cat_agg <- function(x, cat_a_idx, cat_b_idx) {
 
-config <- read_config()
+config <- read_config(path = "config/building_types_agg.yaml")
 agg_cats <- names(config)
 cat_a <- agg_cats[[cat_a_idx]]
 cat_b <- agg_cats[[cat_b_idx]]

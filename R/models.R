@@ -1,17 +1,23 @@
 # TODO: .Rd file(DOCUMENTATION)
 
-real_estate_offer <- function(offer_area, prediction_method) {
+real_estate_offer <- function(offer_area, prediction_method, intervals, colorsvec) {
   stopifnot("Offer area must be a spatial object" = is(offer_area, "sf"))
   stopifnot("Prediction must be linear, orthogonal or spline" = is.character(
     prediction_method)
     )
+  stopifnot("Specify the max number of intervals" = is.numeric(intervals))
+  stopifnot("Colors must be a vector of char" = is.vector(colorsvec))
   require("dplyr")
   ppp_coords <- st_coordinates(offer_area)
   ppp_data <- offer_area %>% mutate(lon = ppp_coords[, "X"],
                                     lat = ppp_coords[, "Y"],
-                                    tipo = as.factor(tipo)) %>%
+                                    tipo = as.factor(tipo_agr)) %>%
     dplyr::select(lat, lon, tipo)
-
+  
+  # last factor level in alphabetical order is the target class
+  target_label <- tail(levels(ppp_data$tipo),1)
+  print(paste("Target class: " , target_label))
+  
   # logistic adjustment
   require(splines)
   if (prediction_method == "linear") {
@@ -34,10 +40,10 @@ real_estate_offer <- function(offer_area, prediction_method) {
       min(ppp_data$lon),
       max(ppp_data$lon),
       length.out = cant),
-    at = seq(min(ppp_data$lat),
+    lat = seq(min(ppp_data$lat),
     max(ppp_data$lat),
     length.out = cant))
-
+  
   pred <- predict(logistic_adj, newdata = grid_canvas, type = "response")
   summary(pred)
 
@@ -60,9 +66,10 @@ real_estate_offer <- function(offer_area, prediction_method) {
   # Plot prediction results
   require(leaflet)
 
-  colorsvec <- c("red", "blue", "green")
+  #colorsvec <- c("red", "blue", "green")
+  #colorsvec <- c("yellow", "orange", "red")
   cat_breaks <- seq(min(raster_vals, na.rm = TRUE),
-  max(raster_vals, na.rm = TRUE), length.out = 20)
+  max(raster_vals, na.rm = TRUE), length.out = intervals)#10)
   col_bins <- colorBin(
     palette = colorsvec,
     bins = cat_breaks,
