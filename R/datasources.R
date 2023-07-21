@@ -18,7 +18,7 @@ build_shp_zone <- function(comunes, ppp_geo) {
 }
 
 json_char <- "{\"type\":\"Polygon\",\"coordinates\":[[[-58.50141949394735,-34.67256921692672],[-58.4683904133488,-34.645763294241725],[-58.45627975046284,-34.64594444443433],[-58.42853532276003,-34.664419684866886],[-58.46156440335859,-34.703711150046814],[-58.50141949394735,-34.67256921692672]]]}"
-build_json_zone <- function(str_geom, ppp_geo){
+build_json_zone <- function(str_geom, ppp_geo) {
   # Area of interest
   aoi <- st_read(str_geom)
   aoi_wgs <- st_transform(aoi, 4326)

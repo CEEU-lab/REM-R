@@ -13,11 +13,10 @@ real_estate_offer <- function(offer_area, prediction_method, intervals, colorsve
                                     lat = ppp_coords[, "Y"],
                                     tipo = as.factor(tipo_agr)) %>%
     dplyr::select(lat, lon, tipo)
-  
   # last factor level in alphabetical order is the target class
   target_label <- tail(levels(ppp_data$tipo),1)
-  print(paste("Target class: " , target_label))
-  
+  print(paste("Target class: ", target_label))
+
   # logistic adjustment
   require(splines)
   if (prediction_method == "linear") {
@@ -43,7 +42,7 @@ real_estate_offer <- function(offer_area, prediction_method, intervals, colorsve
     lat = seq(min(ppp_data$lat),
     max(ppp_data$lat),
     length.out = cant))
-  
+
   pred <- predict(logistic_adj, newdata = grid_canvas, type = "response")
   summary(pred)
 
