@@ -12,13 +12,13 @@ library(sf)
 library(tmap)
 ```
 
-## REAL ESTATE MARKET BEHAVIOR MODELING
+# REAL ESTATE MARKET BEHAVIOR MODELING
 
-### 1. LOOK FOR THE PREDOMINANT OFFER TYPE
+## 1. LOOK FOR THE PREDOMINANT OFFER TYPE
 
 ### Use case: `High & Low Density Building types`
 
-**STEP 1: Load the data**
+### STEP 1: Load the data and create the target class
 
 ```{r, echo=FALSE, message=FALSE}
 source("R/datasources.R")
@@ -53,9 +53,9 @@ ppp_sel <- select_building_types(
   operation = c("Venta"))
 ```
 
-**STEP 2: Define the analysis zone**
+### STEP 2: Define the analysis zone
 
-2.1. Using Polygons shape file (e.g. target neighborhoods)
+#### 2.1. Using Polygons shape file (e.g. target neighborhoods)
 
 ```{r, echo=FALSE, warning=FALSE, out.width=900, out.height=350}
 # Aggregated offer types
@@ -74,7 +74,7 @@ style = "cont")
 
 ```
 
-2.3. Using single polygon geom limits (e.g. drawn area)
+#### 2.3. Using single polygon geom limits (e.g. drawn area)
 
 ```{r, echo=FALSE, warning= FALSE, out.width=900, out.height=350}
 offer_area_ <- build_json_zone(str_geom = json_char, ppp_geo = ppp_caba)
@@ -87,14 +87,14 @@ size = 0.05, shape = 21,
 style = "cont")
 ```
 
-**STEP 3: Find predominant offer type**
+### STEP 3: Find predominant offer type
 
-3.1. Using the shp polygon limits
+#### 3.1. Using the shp polygon limits
 ```{r}
 source("R/models.R")
 real_estate_offer(offer_area = offer_area, prediction_method = "orthogonal", intervals = 10, colorsvec = c("lightblue","yellow","purple"))
 ```
-3.2. Using the users drawn polygons
+#### 3.2. Using the users drawn polygons
 ```{r}
 real_estate_offer(offer_area = offer_area_, prediction_method = "splines", intervals = 6, colorsvec = c("lightblue","yellow","black"))
 ```
