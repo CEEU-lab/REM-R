@@ -66,10 +66,8 @@ real_estate_offer <- function(offer_area, prediction_method, intervals, colorsve
   # Plot prediction results
   require(leaflet)
 
-  #colorsvec <- c("red", "blue", "green")
-  #colorsvec <- c("yellow", "orange", "red")
   cat_breaks <- seq(min(raster_vals, na.rm = TRUE),
-  max(raster_vals, na.rm = TRUE), length.out = intervals)#10)
+  max(raster_vals, na.rm = TRUE), length.out = intervals)
   col_bins <- colorBin(
     palette = colorsvec,
     bins = cat_breaks,
