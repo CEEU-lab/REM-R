@@ -44,12 +44,12 @@ prop.table(table(ppp_recat$agg_col))
 
 source("R/properaty_data.R")
 # Load the data (use ppp_recat or ppp_data)
-btypes = read_config(path = "config/building_types_agg.yaml")
+btypes <- read_config(path = "config/building_types_agg.yaml")
 ppp_sel <- select_building_types(
   input_data = ppp_recat,
   currency = "USD",
-  colname = property_type, 
-  btypes = c(btypes$`residential-types`), 
+  colname = property_type,
+  btypes = c(btypes$`residential-types`),
   operation = c("Venta"))
 ```
 
@@ -92,10 +92,14 @@ style = "cont")
 #### 3.1. Using the shp polygon limits
 ```{r}
 source("R/models.R")
-real_estate_offer(offer_area = offer_area, prediction_method = "orthogonal", intervals = 10, colorsvec = c("lightblue","yellow","purple"))
+real_estate_offer(offer_area = offer_area,
+prediction_method = "orthogonal",
+intervals = 10, colorsvec = c("lightblue", "yellow", "purple"))
 ```
 #### 3.2. Using the users drawn polygons
 ```{r}
-real_estate_offer(offer_area = offer_area_, prediction_method = "splines", intervals = 6, colorsvec = c("lightblue","yellow","black"))
+real_estate_offer(offer_area = offer_area_,
+prediction_method = "splines",
+intervals = 6, colorsvec = c("lightblue", "yellow", "black"))
 ```
 

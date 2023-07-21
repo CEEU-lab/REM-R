@@ -3,7 +3,7 @@ library(sf)
 
 source("R/properaty_data.R")
 source("R/utils.R")
-datasource <- read_config(path = "config/config.yaml") #"config/building_types_agg.yaml")
+datasource <- read_config(path = "config/config.yaml")
 ppp_data_local <- read_local_properaty(path = datasource$data_path)
 
 build_shp_zone <- function(comunes, ppp_geo) {
