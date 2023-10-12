@@ -53,7 +53,7 @@ ppp_sel <- select_building_types(
   operation = c("Venta"))
 ```
 
-### STEP 2: Define the analysis zone
+### STEP 2: Define the analysis zone - (the compact region S)
 
 #### 2.1. Using Polygons shape file (e.g. target neighborhoods)
 
@@ -62,10 +62,10 @@ ppp_sel <- select_building_types(
 ppp_caba <- ppp_sel %>%
 st_as_sf(coords = c("lon", "lat"), crs = 4326)
 
-offer_area <- build_shp_zone(comunes = c(4, 8), ppp_geo = ppp_caba)
+communes <- build_shp_zone(comunes = c(4, 8), ppp_geo = ppp_caba)
 
 tmap_mode("view") +
-tm_shape(offer_area) +
+tm_shape(communes) +
 tm_dots(col = "tipo_agr",
 palette = "RdYlBu",
 stretch.palette = TRUE,
@@ -77,10 +77,10 @@ style = "cont")
 #### 2.3. Using single polygon geom limits (e.g. drawn area)
 
 ```{r, echo=FALSE, warning= FALSE, out.width=900, out.height=350}
-offer_area_ <- build_json_zone(str_geom = json_char, ppp_geo = ppp_caba)
+custom_zone <- build_json_zone(str_geom = json_char, ppp_geo = ppp_caba)
 
 tmap_mode("view") +
-tm_shape(offer_area_) +
+tm_shape(custom_zone) +
 tm_dots(col = "tipo_agr", palette = "RdYlBu",
 stretch.palette = TRUE,
 size = 0.05, shape = 21,
@@ -92,14 +92,27 @@ style = "cont")
 #### 3.1. Using the shp polygon limits
 ```{r}
 source("R/models.R")
-real_estate_offer(offer_area = offer_area,
+real_estate_offer(offer_area = communes,
 prediction_method = "orthogonal",
 intervals = 10, colorsvec = c("lightblue", "yellow", "purple"))
 ```
 #### 3.2. Using the users drawn polygons
 ```{r}
-real_estate_offer(offer_area = offer_area_,
-prediction_method = "splines",
+real_estate_offer(offer_area = custom_zone,
+prediction_method = "linear",
 intervals = 6, colorsvec = c("lightblue", "yellow", "black"))
 ```
+
+```{r}
+resultado <- real_estate_offer(offer_area = custom_zone,
+prediction_method = "linear",
+intervals = 6, colorsvec = c("lightblue", "yellow", "black"))
+```
+
+
+
+
+
+
+
 

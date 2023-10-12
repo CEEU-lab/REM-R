@@ -20,9 +20,9 @@ library(OpenStreetMap)
 
 **STEP 1: Load the data**
 ```{r}
-source("properaty_data.R")
+source("R/properaty_data.R")
 df <- read_local_properaty(path="https://storage.googleapis.com/python_mdg/carto_cursos/ar_properties.csv.gz")
-pt_data <- select_residential_btypes(input_data=df, currency="USD", btypes=c("PH","Casa"), operation=c("Venta"))
+#pt_data <- select_residential_btypes(input_data=df, currency="USD", btypes=c("PH","Casa"), operation=c("Venta"))
 ```
 
 **STEP 2: Define the analysis zone**
@@ -38,91 +38,6 @@ barrios_sur <- barrios %>%
 plot(barrios_sur$geometry)
 ```
 
-# TIPOLOGIAS RESIDENCIALES
-
-Los PH y las casas son tipologías de baja densidad. Los lugares de mayor concentración, podrían representar un mayor incentivo para la compra de lote + edificación.
-
-```{r  echo=FALSE}
-#knitr::opts_chunk$set(warning = FALSE, message = FALSE, fig.width=480, fig.height=480)
-barrios_sur_ <- st_transform(barrios_sur, 4326)
-
-# oferta de PH y Casa
-pt_pts <- pt_data %>% st_as_sf(coords=c("lon","lat"), crs=4326)
-sur_labels <- st_join(pt_pts, barrios_sur_)
-oferta_sur <- na.omit(sur_labels)
-tmap_mode('view') + tm_shape(oferta_sur) + tm_dots(col='tipo', palette="RdYlBu", stretch.palette=TRUE, size=0.05, shape=21, style="cont")
-```
-
-```{r}
-pt_pts <- pt_data %>% st_as_sf(coords=c("lon","lat"), crs=4326)
-json_char <- '{"type":"Polygon","coordinates":[[[-58.47894027107537,-34.65646579501466],[-58.47814027616029,-34.68541524020002],[-58.44314049862075,-34.68245496596179],[-58.444140492264154,-34.6536690060118],[-58.47894027107537,-34.65646579501466]]]}'
-zone <- st_read(json_char)
-zone_wgs <- st_transform(zone, 4326)
-zone_points <- st_join(pt_pts, zone_wgs)
-oferta <- na.omit(zone_points)
-
-
-ggplot() + 
-  #geom_sf(data=zone_points, alpha=0.9, color='red')+
-  #geom_sf(data=pt_pts, alpha=0.9)+
-  geom_sf(data=zone_wgs, size = 0.3,color="black")+
-  geom_sf(data=barrios_sur_, alpha=0.7)
-  geom_df(oferta, color="red")
-```
-
-La estrategia de modelado es lineal donde `tipo ~ lon+lat, family=bynomial` (una estimación de probabilidad). La relación entre x e y podría ser `lon+lat` ó `poly(lon,3)*poly(lat,3)`, etc. En este output es, `bs(lon,4)*bs(lat,4)` - polynomial spline.
-
-```{r setup, include=TRUE, echo=FASLE}
-knitr::opts_chunk$set(warning = FALSE, message = FALSE)
-library("dplyr")
-# creo base con lat/lon y tipo
-coords_of <- st_coordinates(oferta_sur)
-oferta_sur_ <- oferta_sur %>% mutate(lon=coords_of[,"X"], lat=coords_of[,"Y"]) 
-tipo_oferta_sur <- oferta_sur_ %>% dplyr::select(lat,lon,tipo) %>% mutate(tipo=as.factor(tipo))
-table(tipo_oferta_sur$tipo)
-prop.table(table(tipo_oferta_sur$tipo))
-
-# ajuste logistico
-require(splines)
-#logi <- glm(tipo ~ lon+lat, data=tipo_oferta_sur, family="binomial")
-#logi <- glm(tipo ~ poly(lon,3)*poly(lat,3), data=tipo_oferta_sur, family="binomial")
-logi <- glm(tipo ~ bs(lon,4)*bs(lat,4), data=tipo_oferta_sur, family="binomial")
-summary(logi)
-
-# prediccion en grilla
-cant <- 100
-grilla <- expand.grid(lon=seq(min(tipo_oferta_sur$lon), max(tipo_oferta_sur$lon), length.out=cant),
-                      lat=seq(min(tipo_oferta_sur$lat), max(tipo_oferta_sur$lat), length.out=cant))
-pred <- predict(logi, newdata=grilla, type="response")
-summary(pred)
-
-# creo un raster nuevo y vacio
-require(raster)
-cant.filcol <- cant # cuan fina es la grilla
-ras <- raster(nrows=cant.filcol, ncols=cant.filcol, 
-              xmn=min(tipo_oferta_sur$lon), xmx=max(tipo_oferta_sur$lon), 
-              ymn=min(tipo_oferta_sur$lat), ymx=max(tipo_oferta_sur$lat))
-
-# rasterizo
-# ... con probabilidad de PH
-ras_tipo <- raster::rasterize(grilla,ras,field=pred,fun=median) # raster de valores promedios de pm2.med
-# base de casas y ph como sf
-# capsula convexa con casas y ph
-casas_ph_sur <- st_union(tipo_oferta_sur)
-capsula <- st_convex_hull(casas_ph_sur)
-# uso capsula para recortar el area de observacion
-ras_tipo_mask <- raster::mask(ras_tipo, as_Spatial(capsula))
-valores <- raster::values(ras_tipo_mask)
-summary(valores)
-
-# Grafico resultado de la prediccion "ser PH o CASA" sobre el raster
-colores <- c('red','blue','green')
-at <- seq(min(valores, na.rm = T), max(valores, na.rm = T), length.out=20) # ptos de corte de categorias
-cb <- colorBin(palette = colores, bins = at, domain = at, na.color="#00000000")
-leaflet(width=900, height=400) %>% addTiles() %>% addProviderTiles(providers$CartoDB.Positron) %>% addRasterImage(ras_tipo_mask, opacity=0.75, colors=cb) %>% addLegend(pal=cb, values=at) 
-```
-
-El resultado (siguiendo la formula lineal que indicamos arriba) estaría indicando una mayor probabilidad de ocurrencia del proceso marcado hacia el este de la comuna 4. Esto podría ser un insight del escenario de base.
 
 **SUPUESTO 2**: MODIFICACION DE LA TENDENCIA ESPACIAL DE PRECIOS.
 
@@ -149,7 +64,7 @@ Localizacion de la oferta de suelo Q1-2021.
 
 ```{r, echo=FALSE}
 lot_pts <- lot_data %>% st_as_sf(coords=c("lon","lat"), crs=4326)
-sur_lotes <- st_join(lot_pts, barrios_sur_)
+sur_lotes <- st_join(lot_pts, barrios_sur)
 lotes_sur <- na.omit(sur_lotes)
 hist(lotes_sur$pm2)
 map <- tmap_mode('view') + tm_shape(lotes_sur) + tm_dots(col='pm2',
@@ -235,7 +150,7 @@ summary(kri_lotes)
 require(tidyverse)
 
 # limite geografico de las dos comunas
-barrios_sur__ <- st_transform(barrios_sur_, 4326)
+barrios_sur__ <- st_transform(barrios_sur, 4326)
 bsur <- barrios_sur__ %>%  st_make_valid() %>% st_union  
 bsur_coord <- st_coordinates(bsur)[,1:2] # coordenadas de los dos barrios
 dimnames(bsur_coord)[[2]] <- c("coords.x1","coords.x2") # renombra las series
@@ -282,9 +197,25 @@ contour(prediccion, add=TRUE, drawlabels=FALSE, col="cyan")
 
 
 # Visualizo la superficie de prediccion en el mapa [REPROYECTAR]
-#tmap_mode('view') + 
-  #tm_shape(kri_lotes_grid) + tm_raster(col="var1.pred", alpha=0.6, style="cont", palette = c("purple","white","orange"))
+tmap_mode('view') + 
+  tm_shape(kri_lotes_grid) + tm_raster(col="var1.pred", alpha=0.6, style="cont", palette = c("purple","white","orange"))
   
 ```
 
 La tendencia de precios con los lotes actualmente ofertados muestra un alza desde el suroeste al noreste. Esto es lo que se podria ir modificando a medida que aregamos nuevos procesos marcados o puntos como referencia
+
+```{r}
+Y.sca <- scale(lotes_sur$precio)-min(scale(lotes_sur$precio))+0.1
+plot(kri_lotes_grid["var1.pred"])
+lines(bsur_coord)
+points(lotes_sur, cex=Y.sca/2)
+```
+
+```{r}
+prueba <- kri_lotes %>% as.data.frame
+hist(prueba$var1.pred)
+```
+```{r}
+kri_lotes_grid["var1.pred"]
+```
+
