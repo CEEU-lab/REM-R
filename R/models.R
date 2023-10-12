@@ -67,14 +67,17 @@ real_estate_offer <- function(offer_area, prediction_method, intervals, colorsve
 
   cat_breaks <- seq(min(raster_vals, na.rm = TRUE),
   max(raster_vals, na.rm = TRUE), length.out = intervals)
+  
   col_bins <- colorBin(
     palette = colorsvec,
     bins = cat_breaks,
     domain = cat_breaks,
     na.color = "#00000000")
-  leaflet(width = 900, height = 400) %>%
+  
+  outmap <- leaflet(width = 900, height = 400) %>%
     addTiles() %>%
     addProviderTiles(providers$CartoDB.Positron) %>%
     addRasterImage(raster_mask, opacity = 0.75, colors = colorsvec) %>%
     addLegend(pal = col_bins, values = cat_breaks)
+  return(outmap)
 }
