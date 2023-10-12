@@ -9,3 +9,5 @@ tmap
 leaflet
 htmlwidgets
 "
+
+requiRements::install(packages = pckgs_string)
